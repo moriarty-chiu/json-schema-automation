@@ -1,0 +1,48 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": true,
+    "properties": {
+        "cce": {
+            "default": [],
+            "description": "Specifices the version of the CCE cluster.",
+            "items": {
+                "additionalProperties": true,
+                "properties": {
+                    "_description": {
+                        "type": "string"
+                    },
+                    "az": {
+                        "type": "string"
+                    },
+                    "cce_size": {
+                        "type":"string"
+                    },
+                    "nodepool": {
+                        "items": {
+                            "type":"string"
+                        },
+                        "type":"array"
+                    },
+                    "number_of_nodes": {
+                        "type": "number"
+                    },
+                    "subnet": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "_description",
+                    "az",
+                    "cce_size",
+                    "nodepool",
+                    "number_of_nodes",
+                    "subnet"
+                ],
+                "type":"object"
+            },
+            "type":"array"
+        }
+    },
+    "required": [],
+    "type":"object"
+}

@@ -1,0 +1,12 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": true,
+    "format": "categories",
+    "properties": {
+        "cce": {
+            "$ref": "shared-schema.json"
+        }
+    },
+    "required": ["cce"],
+    "type":"object"
+}
