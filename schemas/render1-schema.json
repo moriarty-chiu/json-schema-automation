@@ -3,49 +3,93 @@
   "additionalProperties": true,
   "format": "categories",
   "properties": {
-        "cce": {
-          "default": [],
-          "description": "Specifices the version of the CCE cluster.",
-          "items": {
-            "additionalProperties": true,
-            "properties": {
-              "_description": {
-                "type": "string"
-              },
-              "az": {
-                "type": "string"
-              },
-              "cce_size": {
-                "type": "string"
-              },
-              "nodepool": {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              "number_of_nodes": {
-                "type": "number"
-              },
-              "subnet": {
-                "type": "string"
-              }
+    "cce": {
+      "default": [],
+      "description": "Specifices the version of the CCE cluster.",
+      "items": {
+        "additionalProperties": true,
+        "properties": {
+          "_description": {
+            "type": "string"
+          },
+          "az": {
+            "type": "string"
+          },
+          "cce_size": {
+            "type": "string"
+          },
+          "nodepool": {
+            "items": {
+              "type": "string"
             },
-            "required": [
-              "_description",
-              "az",
-              "cce_size",
-              "nodepool",
-              "number_of_nodes",
-              "subnet"
-            ],
+            "type": "array"
+          },
+          "number_of_nodes": {
+            "type": "number"
+          },
+          "subnet": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "_description",
+          "az",
+          "cce_size",
+          "nodepool",
+          "number_of_nodes",
+          "subnet"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "sfs": {
+      "default": [],
+      "description": "Specifices the version of the SFS service.",
+      "items": {
+        "additionalProperties": true,
+        "properties": {
+          "_description": {
+            "type": "string"
+          },
+          "az": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sfs_type": {
+            "type": "string"
+          },
+          "shared_access_policy": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "properties": {},
+              "required": [],
+              "type": "object"
+            },
             "type": "object"
           },
-          "type": "array"
-        }
+          "size": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "_description",
+          "az",
+          "name",
+          "sfs_type",
+          "shared_access_policy",
+          "size"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    }
   },
   "required": [
-    "cce"
+    "cce",
+    "sfs"
   ],
   "type": "object"
 }

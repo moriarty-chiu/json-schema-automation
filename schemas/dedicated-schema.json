@@ -5,8 +5,11 @@
     "properties": {
         "cce": {
             "$ref": "https://raw.githubusercontent.com/moriarty-chiu/json-schema-automation/refs/heads/main/schemas/shared-schema.json"
+        },
+        "sfs": {
+            "$ref": "https://raw.githubusercontent.com/moriarty-chiu/json-schema-automation/refs/heads/main/schemas/shared2-schema.json"
         }
     },
-    "required": ["cce"],
+    "required": ["cce", "sfs"],
     "type":"object"
 }
