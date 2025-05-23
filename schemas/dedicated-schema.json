@@ -4,7 +4,7 @@
     "format": "categories",
     "properties": {
         "cce": {
-            "$ref": "shared-schema.json"
+            "$ref": "https://raw.githubusercontent.com/moriarty-chiu/json-schema-automation/refs/heads/main/schemas/shared-schema.json"
         }
     },
     "required": ["cce"],

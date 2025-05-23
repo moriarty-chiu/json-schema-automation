@@ -1,0 +1,51 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": true,
+    "properties": {
+        "sfs": {
+            "default": [],
+            "description": "Specifices the version of the SFS service.",
+            "items": {
+                "additionalProperties": true,
+                "properties": {
+                    "_description": {
+                        "type":"string"
+                    },
+                    "az": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "sfs_type": {
+                        "type": "string"
+                    },
+                    "shared_access_policy": {
+                        "additionalProperties": {
+                            "additionalProperties": true,
+                            "properties": {},
+                            "required": [],
+                            "type":"object"
+                        },
+                        "type": "object"
+                    },
+                    "size": {
+                        "type": "number"
+                    }
+                },
+                "required": [
+                    "_description",
+                    "az",
+                    "name",
+                    "sfs_type",
+                    "shared_access_policy",
+                    "size"
+                ],
+                "type": "object"
+            },
+            "type": "array"
+        }
+    },
+    "required": [],
+    "type": "object"
+}
