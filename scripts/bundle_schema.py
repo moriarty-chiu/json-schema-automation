@@ -26,4 +26,3 @@ schema["required"] = list(schema.get("properties", {}).keys())
 with open(output_path, "w") as f:
     json.dump(schema, f, indent=2)
 
-output_path

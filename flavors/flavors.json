@@ -1,0 +1,5 @@
+{
+	"acl": ["read", "write", "read-only"],
+	"mode": ["ha", "single"],
+	"obs_size": ["small", "medium", "large"]
+}
