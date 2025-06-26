@@ -1,0 +1,51 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": true,
+  "format": "categories",
+  "properties": {
+    "aks": {
+      "default": [],
+      "description": "some description",
+      "items": {
+        "additionalProperties": true,
+        "properties": {
+          "acl": {
+            "type": "string",
+            "enum": [
+              "read",
+              "write",
+              "read-only"
+            ]
+          }
+        },
+        "required": [
+          "acl"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "k8s": {
+      "default": [],
+      "description": "some description",
+      "items": {
+        "additionalProperties": true,
+        "properties": {
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "aks",
+    "k8s"
+  ],
+  "type": "object"
+}
