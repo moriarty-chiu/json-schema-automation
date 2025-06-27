@@ -21,7 +21,7 @@ while IFS= read -r line || [ -n "$line" ]; do
     continue
   fi
 
-  # Inside command block: collect lines or look for pattern
+  # Inside command block
   if [[ $collecting_command -eq 1 ]]; then
     if [[ "$trimmed" =~ ^-?[[:space:]]*pattern:[[:space:]]*(.+) ]]; then
       current_pattern="${BASH_REMATCH[1]}"
@@ -32,13 +32,20 @@ while IFS= read -r line || [ -n "$line" ]; do
         echo "➡️  Running command #$total_commands:"
         echo "$current_command"
 
-        # Run command and capture output
+        # Run the command and capture output
         output=$(eval "$current_command" 2>&1)
         echo "📤 Output:"
         echo "$output"
 
-        # Match using grep for multiline compatibility
-        if echo "$output" | grep -qE "$current_pattern"; then
+        # Clean the output: remove \r, trim trailing whitespace
+        clean_output=$(printf '%s\n' "$output" | tr -d '\r' | sed 's/[[:space:]]*$//')
+
+        # Debug: show raw output in hex
+        echo "🔎 Output (hex view):"
+        printf '%s' "$clean_output" | xxd
+
+        # Match using grep
+        if printf '%s\n' "$clean_output" | grep -qE "$current_pattern"; then
           echo "✅ Match succeeded"
           ((success_count++))
         else
@@ -54,18 +61,17 @@ while IFS= read -r line || [ -n "$line" ]; do
       continue
     fi
 
-    # Continue collecting command lines
     current_command+="$line"$'\n'
     continue
   fi
 done < "$yaml_file"
 
-# Match results summary
+# Match result summary
 echo "====== Match Summary ======"
 if [ ${#failed_checks[@]} -eq 0 ]; then
   echo "🎉 All commands matched successfully"
 else
-  echo "⚠️ The following commands did not match the pattern:"
+  echo "⚠️ The following commands failed to match:"
   for fail in "${failed_checks[@]}"; do
     cmd_clean=$(echo "$fail" | tr '\n' ' ')
     echo "  - $cmd_clean"
