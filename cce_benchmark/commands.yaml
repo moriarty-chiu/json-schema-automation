@@ -1,7 +1,7 @@
 - command: |
     ps -ef | grep kube-proxy | grep -v grep | sed 's/ /\n/g' | grep "^_ _" | awk -F'--kubeconfig=' '{print $2}' | grep -v ^$
-  pattern: ".+"
+  pattern: .+
 
 - command: |
     kube=`find /etc/systemd/system/kubelet.service.d -name "10-kubeadm.conf" 2>/dev/null`;stat -c '%n %a' $kube 2>/dev/null | sort
-  pattern: "[0246]00 | ^0$"
+  pattern: [0246]00|^0$

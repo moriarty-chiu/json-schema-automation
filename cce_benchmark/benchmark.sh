@@ -14,7 +14,7 @@ while IFS= read -r line || [ -n "$line" ]; do
   trimmed="${line#"${line%%[![:space:]]*}"}"
   [[ -z "$trimmed" || "$trimmed" =~ ^# ]] && continue
 
-  # Start of a multi-line command block
+  # Start of multi-line command
   if [[ "$trimmed" =~ ^-?[[:space:]]*command:[[:space:]]*\| ]]; then
     current_command=""
     collecting_command=1
@@ -25,6 +25,13 @@ while IFS= read -r line || [ -n "$line" ]; do
   if [[ $collecting_command -eq 1 ]]; then
     if [[ "$trimmed" =~ ^-?[[:space:]]*pattern:[[:space:]]*(.+) ]]; then
       current_pattern="${BASH_REMATCH[1]}"
+
+      # 🔧 Strip quotes if present
+      current_pattern="${current_pattern%\"}"
+      current_pattern="${current_pattern#\"}"
+      current_pattern="${current_pattern%\'}"
+      current_pattern="${current_pattern#\'}"
+
       collecting_command=0
 
       if [[ -n "$current_command" && -n "$current_pattern" ]]; then
@@ -37,14 +44,17 @@ while IFS= read -r line || [ -n "$line" ]; do
         echo "📤 Output:"
         echo "$output"
 
-        # Clean the output: remove \r, trim trailing whitespace
+        # Clean output: remove \r and trailing spaces
         clean_output=$(printf '%s\n' "$output" | tr -d '\r' | sed 's/[[:space:]]*$//')
 
-        # Debug: show raw output in hex
-        echo "🔎 Output (hex view):"
+        # Debug: hex view of output and pattern
+        echo "🔎 Output (hex):"
         printf '%s' "$clean_output" | xxd
+        echo "🔎 Pattern: [$current_pattern]"
+        echo "🔎 Pattern (hex):"
+        printf '%s' "$current_pattern" | xxd
 
-        # Match using grep
+        # Match
         if printf '%s\n' "$clean_output" | grep -qE "$current_pattern"; then
           echo "✅ Match succeeded"
           ((success_count++))
@@ -66,19 +76,19 @@ while IFS= read -r line || [ -n "$line" ]; do
   fi
 done < "$yaml_file"
 
-# Match result summary
+# Summary
 echo "====== Match Summary ======"
 if [ ${#failed_checks[@]} -eq 0 ]; then
   echo "🎉 All commands matched successfully"
 else
-  echo "⚠️ The following commands failed to match:"
+  echo "⚠️  The following commands failed to match:"
   for fail in "${failed_checks[@]}"; do
     cmd_clean=$(echo "$fail" | tr '\n' ' ')
     echo "  - $cmd_clean"
   done
 fi
 
-# Match statistics
+# Stats
 echo
 echo "====== Match Statistics ======"
 echo "📦 Total commands     : $total_commands"
