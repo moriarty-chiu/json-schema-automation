@@ -4,4 +4,4 @@
 
 - command: |
     kube=`find /etc/systemd/system/kubelet.service.d -name "10-kubeadm.conf" 2>/dev/null`;stat -c '%n %a' $kube 2>/dev/null | sort
-  pattern: [0246]00|^0$
+  pattern: '[0246]00|^0$'
