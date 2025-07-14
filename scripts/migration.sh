@@ -1,14 +1,13 @@
 #!/bin/bash
-set -euo pipefail
 
 # Configuration
-SOURCE_DOMAIN="gitlab.example.com"
-SOURCE_PROTOCOL="http"
-DESTINATION_DOMAIN="new-gitlab.example.com"
-DESTINATION_PROTOCOL="https"
-TEMP_DIR="migration_tmp"
-MAX_RETRY=2
-LOG_FILE="migration_$(date +%Y%m%d_%H%M%S).log"
+SOURCE_DOMAIN="gitlab.example.com"             # Source server domain
+SOURCE_PROTOCOL="http"                         # Source protocol (http/https/ssh)
+DESTINATION_DOMAIN="new-gitlab.example.com"    # Destination server domain
+DESTINATION_PROTOCOL="https"                   # Destination protocol (https/ssh)
+TEMP_DIR="migration_tmp"                       # Temporary directory
+MAX_RETRY=2                                    # Max retry count
+LOG_FILE="migration_$(date +%Y%m%d_%H%M%S).log" # Main log file
 
 # Counters
 total=0
@@ -16,28 +15,14 @@ success=0
 fail=0
 current=0
 
-# Progress bar function
-show_progress() {
-    local done=$1
-    local total=$2
-    local width=40
-    local percent=$(( 100 * done / total ))
-    local fill=$(( width * done / total ))
-
-    printf "\r["
-
-    for ((i=0; i<fill; i++)); do
-        printf "#"
-    done
-
-    for ((i=fill; i<width; i++)); do
-        printf "-"
-    done
-
-    printf "] %3d%% (%d/%d)" "$percent" "$done" "$total"
+# Cleanup function (cleans whole temp dir on exit)
+cleanup() {
+    rm -rf "$TEMP_DIR"
+    echo "Temporary directory cleaned."
 }
+trap cleanup EXIT
 
-# General log function (to main LOG_FILE)
+# Logging function
 log() {
     local level=$1
     local message=$2
@@ -46,22 +31,14 @@ log() {
     echo -e "[${timestamp}] [${level}] ${message}" | tee -a "$LOG_FILE"
 }
 
-# Per-project log function (to per-project log file)
-project_log() {
-    local level=$1
-    local message=$2
-    local timestamp
-    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-    echo -e "[${timestamp}] [${level}] ${message}" >> "$PROJECT_LOG"
-}
-
+# Generate URL for git clone/push
 generate_url() {
     local domain=$1
     local protocol=$2
     local group=$3
     local project=$4
 
-    case "$protocol" in
+    case $protocol in
         ssh)
             echo "git@${domain}:${group}/${project}.git"
             ;;
@@ -84,6 +61,7 @@ generate_url() {
     esac
 }
 
+# Main migration function
 migrate_project() {
     local src_grp=$1
     local src_prj=$2
@@ -96,49 +74,39 @@ migrate_project() {
     local dst_url
     dst_url=$(generate_url "$DESTINATION_DOMAIN" "$DESTINATION_PROTOCOL" "$dst_grp" "$dst_prj")
 
-    # Unique clone dir with nanoseconds and random number to avoid conflicts
-    local clone_dir="${TEMP_DIR}/${src_prj}_$(date +%s%N)_$RANDOM"
-    PROJECT_LOG="${clone_dir}/migration.log"
+    local clone_dir="${TEMP_DIR}/${src_prj}_$(date +%s%N)_$$"
 
-    log "INFO" "Starting migration: $src_url → $dst_url (Logs: $PROJECT_LOG)"
-
-    # Clean up before clone
-    rm -rf "$clone_dir"
-    mkdir -p "$clone_dir"
+    log "INFO" "Migrating: $src_url → $dst_url"
 
     for ((retry=1; retry<=MAX_RETRY; retry++)); do
-        if git clone --bare "$src_url" "$clone_dir" >> "$PROJECT_LOG" 2>&1; then
-            if ! cd "$clone_dir"; then
-                project_log "ERROR" "Failed to enter directory $clone_dir"
-                rm -rf "$clone_dir"
-                return 1
-            fi
+        rm -rf "$clone_dir"
+        mkdir -p "$clone_dir"
 
-            git remote set-url origin "$dst_url" >> "$PROJECT_LOG" 2>&1
-
-            if git push --all --force >> "$PROJECT_LOG" 2>&1 && git push --tags --force >> "$PROJECT_LOG" 2>&1; then
-                project_log "SUCCESS" "Push successful: ${dst_grp}/${dst_prj}"
-                cd - >/dev/null || exit 1
+        if git clone --mirror "$src_url" "$clone_dir" >> "$LOG_FILE" 2>&1; then
+            cd "$clone_dir" || { log "ERROR" "Failed to enter directory $clone_dir"; return 1; }
+            if git remote set-url origin "$dst_url" >> "$LOG_FILE" 2>&1 && git push --mirror >> "$LOG_FILE" 2>&1; then
+                log "SUCCESS" "Push succeeded for $dst_grp/$dst_prj"
+                cd - >/dev/null || exit
                 rm -rf "$clone_dir"
                 return 0
             else
-                project_log "WARNING" "Push failed (attempt ${retry}), retrying..."
+                log "WARNING" "Push failed at attempt $retry, retrying..."
             fi
-
-            cd - >/dev/null || exit 1
+            cd - >/dev/null || exit
         else
-            project_log "WARNING" "Clone failed (attempt ${retry}), retrying..."
+            log "WARNING" "Clone failed at attempt $retry, retrying..."
         fi
 
         rm -rf "$clone_dir"
         sleep $((retry * 3))
     done
 
-    project_log "ERROR" "Migration failed: $src_url"
     rm -rf "$clone_dir"
+    log "ERROR" "Migration failed for $src_url"
     return 1
 }
 
+# Input validation
 validate_input() {
     if [ ! -f "$PROJECT_LIST" ]; then
         log "ERROR" "Project list file not found: $PROJECT_LIST"
@@ -147,39 +115,39 @@ validate_input() {
 
     while IFS= read -r line; do
         if [ "$(echo "$line" | wc -w)" -ne 4 ]; then
-            log "ERROR" "Invalid format: $line (Expected: source_group source_project destination_group destination_project)"
+            log "ERROR" "Invalid line format: $line (expecting 4 params)"
             exit 1
         fi
     done < <(grep -vE '^#|^$' "$PROJECT_LIST")
 }
 
+# Main program
 main() {
     PROJECT_LIST=${1:-project_list.txt}
     validate_input
 
     mkdir -p "$TEMP_DIR"
     total=$(grep -vcE '^#|^$' "$PROJECT_LIST")
-    log "INFO" "Starting migration of ${total} projects"
+    log "INFO" "Starting migration of $total projects"
 
     while IFS= read -r line; do
-        current=$((current + 1))
+        ((current++))
         read -r src_grp src_prj dst_grp dst_prj <<< "$line"
 
-        show_progress "$current" "$total"
+        log "INFO" "Processing project $current/$total: $src_grp/$src_prj"
 
         if migrate_project "$src_grp" "$src_prj" "$dst_grp" "$dst_prj"; then
-            success=$((success + 1))
-            log "INFO" "Project ${src_grp}/${src_prj} migrated successfully."
+            ((success++))
         else
-            fail=$((fail + 1))
-            log "ERROR" "Project ${src_grp}/${src_prj} migration failed."
+            ((fail++))
         fi
 
+        echo "----------------------------------------" >> "$LOG_FILE"
     done < <(grep -vE '^#|^$' "$PROJECT_LIST")
 
-    echo ""
-    log "INFO" "Migration completed: Success ${success}, Failures ${fail}"
+    log "INFO" "Migration completed. Success: $success, Failures: $fail"
     exit $fail
 }
 
+# Run
 main "$@"
