@@ -16,7 +16,7 @@ success=0
 fail=0
 current=0
 
-# Progress bar
+# Progress bar function
 show_progress() {
     local done=$1
     local total=$2
@@ -37,7 +37,7 @@ show_progress() {
     printf "] %3d%% (%d/%d)" "$percent" "$done" "$total"
 }
 
-# Logging
+# Logging function
 log() {
     local level=$1
     local message=$2
@@ -94,9 +94,9 @@ migrate_project() {
     log "INFO" "Migrating: $src_url → $dst_url"
 
     for ((retry=1; retry<=MAX_RETRY; retry++)); do
-        if git clone --mirror "$src_url" "$clone_dir" >> "$LOG_FILE" 2>&1; then
+        if git clone --bare "$src_url" "$clone_dir" >> "$LOG_FILE" 2>&1; then
             (
-                set +e  # Allow failure in retry logic
+                set +e  # Allow failure inside retry block
                 cd "$clone_dir" || return 1
                 git remote set-url origin "$dst_url" >> "$LOG_FILE" 2>&1
 
