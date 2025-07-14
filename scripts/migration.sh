@@ -37,7 +37,7 @@ show_progress() {
     printf "] %3d%% (%d/%d)" "$percent" "$done" "$total"
 }
 
-# General log function (write to main LOG_FILE)
+# General log function (to main LOG_FILE)
 log() {
     local level=$1
     local message=$2
@@ -46,7 +46,7 @@ log() {
     echo -e "[${timestamp}] [${level}] ${message}" | tee -a "$LOG_FILE"
 }
 
-# Per-project log function (write to $PROJECT_LOG)
+# Per-project log function (to per-project log file)
 project_log() {
     local level=$1
     local message=$2
@@ -96,10 +96,14 @@ migrate_project() {
     local dst_url
     dst_url=$(generate_url "$DESTINATION_DOMAIN" "$DESTINATION_PROTOCOL" "$dst_grp" "$dst_prj")
 
-    local clone_dir="${TEMP_DIR}/${src_prj}_$(date +%s)"
+    # Unique clone dir with nanoseconds and random number to avoid conflicts
+    local clone_dir="${TEMP_DIR}/${src_prj}_$(date +%s%N)_$RANDOM"
     PROJECT_LOG="${clone_dir}/migration.log"
 
     log "INFO" "Starting migration: $src_url → $dst_url (Logs: $PROJECT_LOG)"
+
+    # Clean up before clone
+    rm -rf "$clone_dir"
     mkdir -p "$clone_dir"
 
     for ((retry=1; retry<=MAX_RETRY; retry++)); do
@@ -112,7 +116,7 @@ migrate_project() {
 
             git remote set-url origin "$dst_url" >> "$PROJECT_LOG" 2>&1
 
-            if git push --all >> "$PROJECT_LOG" 2>&1 && git push --tags >> "$PROJECT_LOG" 2>&1; then
+            if git push --all --force >> "$PROJECT_LOG" 2>&1 && git push --tags --force >> "$PROJECT_LOG" 2>&1; then
                 project_log "SUCCESS" "Push successful: ${dst_grp}/${dst_prj}"
                 cd - >/dev/null || exit 1
                 rm -rf "$clone_dir"
