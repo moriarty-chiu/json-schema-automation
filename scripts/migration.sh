@@ -37,7 +37,7 @@ show_progress() {
     printf "] %3d%% (%d/%d)" "$percent" "$done" "$total"
 }
 
-# Logging function
+# General log function (write to main LOG_FILE)
 log() {
     local level=$1
     local message=$2
@@ -46,7 +46,15 @@ log() {
     echo -e "[${timestamp}] [${level}] ${message}" | tee -a "$LOG_FILE"
 }
 
-# URL generator
+# Per-project log function (write to $PROJECT_LOG)
+project_log() {
+    local level=$1
+    local message=$2
+    local timestamp
+    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo -e "[${timestamp}] [${level}] ${message}" >> "$PROJECT_LOG"
+}
+
 generate_url() {
     local domain=$1
     local protocol=$2
@@ -76,7 +84,6 @@ generate_url() {
     esac
 }
 
-# Migration function
 migrate_project() {
     local src_grp=$1
     local src_prj=$2
@@ -90,42 +97,44 @@ migrate_project() {
     dst_url=$(generate_url "$DESTINATION_DOMAIN" "$DESTINATION_PROTOCOL" "$dst_grp" "$dst_prj")
 
     local clone_dir="${TEMP_DIR}/${src_prj}_$(date +%s)"
+    PROJECT_LOG="${clone_dir}/migration.log"
 
-    log "INFO" "Migrating: $src_url → $dst_url"
+    log "INFO" "Starting migration: $src_url → $dst_url (Logs: $PROJECT_LOG)"
+    mkdir -p "$clone_dir"
 
     for ((retry=1; retry<=MAX_RETRY; retry++)); do
-        if git clone --bare "$src_url" "$clone_dir" >> "$LOG_FILE" 2>&1; then
-            # Enter cloned repo directory
+        if git clone --bare "$src_url" "$clone_dir" >> "$PROJECT_LOG" 2>&1; then
             if ! cd "$clone_dir"; then
-                log "ERROR" "Failed to enter directory $clone_dir"
+                project_log "ERROR" "Failed to enter directory $clone_dir"
                 rm -rf "$clone_dir"
                 return 1
             fi
 
-            git remote set-url origin "$dst_url" >> "$LOG_FILE" 2>&1
+            git remote set-url origin "$dst_url" >> "$PROJECT_LOG" 2>&1
 
-            if git push --all >> "$LOG_FILE" 2>&1 && git push --tags >> "$LOG_FILE" 2>&1; then
-                log "SUCCESS" "Push successful: ${dst_grp}/${dst_prj}"
+            if git push --all >> "$PROJECT_LOG" 2>&1 && git push --tags >> "$PROJECT_LOG" 2>&1; then
+                project_log "SUCCESS" "Push successful: ${dst_grp}/${dst_prj}"
+                cd - >/dev/null || exit 1
                 rm -rf "$clone_dir"
                 return 0
             else
-                log "WARNING" "Push failed (attempt ${retry}), retrying..."
+                project_log "WARNING" "Push failed (attempt ${retry}), retrying..."
             fi
 
             cd - >/dev/null || exit 1
         else
-            log "WARNING" "Clone failed (attempt ${retry}), retrying..."
+            project_log "WARNING" "Clone failed (attempt ${retry}), retrying..."
         fi
 
         rm -rf "$clone_dir"
         sleep $((retry * 3))
     done
 
-    log "ERROR" "Migration failed: $src_url"
+    project_log "ERROR" "Migration failed: $src_url"
+    rm -rf "$clone_dir"
     return 1
 }
 
-# Input validation
 validate_input() {
     if [ ! -f "$PROJECT_LIST" ]; then
         log "ERROR" "Project list file not found: $PROJECT_LIST"
@@ -140,7 +149,6 @@ validate_input() {
     done < <(grep -vE '^#|^$' "$PROJECT_LIST")
 }
 
-# Main process
 main() {
     PROJECT_LIST=${1:-project_list.txt}
     validate_input
@@ -157,8 +165,10 @@ main() {
 
         if migrate_project "$src_grp" "$src_prj" "$dst_grp" "$dst_prj"; then
             success=$((success + 1))
+            log "INFO" "Project ${src_grp}/${src_prj} migrated successfully."
         else
             fail=$((fail + 1))
+            log "ERROR" "Project ${src_grp}/${src_prj} migration failed."
         fi
 
     done < <(grep -vE '^#|^$' "$PROJECT_LIST")
