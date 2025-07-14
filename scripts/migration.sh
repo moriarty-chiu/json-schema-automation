@@ -61,7 +61,7 @@ generate_url() {
     esac
 }
 
-# Main migration function
+# Migration function
 migrate_project() {
     local src_grp=$1
     local src_prj=$2
@@ -87,55 +87,42 @@ migrate_project() {
 
             git remote set-url origin "$dst_url" >> "$LOG_FILE" 2>&1
 
-            # Push all branches
-            push_output=$(git push --all 2>&1)
+            # Mirror push with hidden ref rejection handling
+            push_output=$(git push --mirror 2>&1)
             push_exit=$?
-            if [ $push_exit -ne 0 ] && echo "$push_output" | grep -q "deny updating a hidden ref"; then
-                log "WARNING" "Hidden ref push rejected but ignored."
-                push_exit=0
-            fi
 
             if [ $push_exit -ne 0 ]; then
-                log "WARNING" "Push all branches failed at attempt $retry: $push_output"
+                hidden_ref_errors=$(echo "$push_output" | grep -c "deny updating a hidden ref")
+                total_rejected=$(echo "$push_output" | grep -c "\[remote rejected\]")
+
+                if [ "$total_rejected" -gt 0 ] && [ "$hidden_ref_errors" -eq "$total_rejected" ]; then
+                    log "WARNING" "All rejections are hidden refs, ignoring."
+                    push_exit=0
+                else
+                    log "ERROR" "Push failed with other errors at attempt $retry: $push_output"
+                fi
+            fi
+
+            if [ $push_exit -eq 0 ]; then
+                log "SUCCESS" "Mirror push succeeded for $dst_grp/$dst_prj"
                 cd - >/dev/null || exit
                 rm -rf "$clone_dir"
-                sleep $((retry * 3))
-                continue
+                return 0
             fi
 
-            # Push tags
-            push_output=$(git push --tags 2>&1)
-            push_exit=$?
-            if [ $push_exit -ne 0 ] && echo "$push_output" | grep -q "deny updating a hidden ref"; then
-                log "WARNING" "Hidden ref push rejected but ignored."
-                push_exit=0
-            fi
-
-            if [ $push_exit -ne 0 ]; then
-                log "WARNING" "Push tags failed at attempt $retry: $push_output"
-                cd - >/dev/null || exit
-                rm -rf "$clone_dir"
-                sleep $((retry * 3))
-                continue
-            fi
-
-            log "SUCCESS" "Push succeeded for $dst_grp/$dst_prj"
             cd - >/dev/null || exit
             rm -rf "$clone_dir"
-            return 0
+            sleep $((retry * 3))
         else
             log "WARNING" "Clone failed at attempt $retry, retrying..."
+            rm -rf "$clone_dir"
+            sleep $((retry * 3))
         fi
-
-        rm -rf "$clone_dir"
-        sleep $((retry * 3))
     done
 
-    rm -rf "$clone_dir"
     log "ERROR" "Migration failed for $src_url"
     return 1
 }
-
 
 # Input validation
 validate_input() {
