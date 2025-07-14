@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 # Configuration
 SOURCE_DOMAIN="gitlab.example.com"
@@ -95,10 +96,11 @@ migrate_project() {
     for ((retry=1; retry<=MAX_RETRY; retry++)); do
         if git clone --mirror "$src_url" "$clone_dir" >> "$LOG_FILE" 2>&1; then
             (
+                set +e  # Allow failure in retry logic
                 cd "$clone_dir" || return 1
                 git remote set-url origin "$dst_url" >> "$LOG_FILE" 2>&1
 
-                if git push --mirror >> "$LOG_FILE" 2>&1; then
+                if git push --all >> "$LOG_FILE" 2>&1 && git push --tags >> "$LOG_FILE" 2>&1; then
                     log "SUCCESS" "Push successful: ${dst_grp}/${dst_prj}"
                     rm -rf "$clone_dir"
                     return 0
@@ -127,7 +129,7 @@ validate_input() {
 
     while IFS= read -r line; do
         if [ "$(echo "$line" | wc -w)" -ne 4 ]; then
-            log "ERROR" "Invalid format: $line (Expected 4 parameters: source_group source_project destination_group destination_project)"
+            log "ERROR" "Invalid format: $line (Expected: source_group source_project destination_group destination_project)"
             exit 1
         fi
     done < <(grep -vE '^#|^$' "$PROJECT_LIST")
@@ -143,15 +145,16 @@ main() {
     log "INFO" "Starting migration of ${total} projects"
 
     while IFS= read -r line; do
-        ((current++))
+        current=$((current + 1))
+
         read -r src_grp src_prj dst_grp dst_prj <<< "$line"
 
         show_progress "$current" "$total"
 
         if migrate_project "$src_grp" "$src_prj" "$dst_grp" "$dst_prj"; then
-            ((success++))
+            success=$((success + 1))
         else
-            ((fail++))
+            fail=$((fail + 1))
         fi
 
     done < <(grep -vE '^#|^$' "$PROJECT_LIST")
