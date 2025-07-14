@@ -84,15 +84,45 @@ migrate_project() {
 
         if git clone --mirror "$src_url" "$clone_dir" >> "$LOG_FILE" 2>&1; then
             cd "$clone_dir" || { log "ERROR" "Failed to enter directory $clone_dir"; return 1; }
-            if git remote set-url origin "$dst_url" >> "$LOG_FILE" 2>&1 && git push --mirror >> "$LOG_FILE" 2>&1; then
-                log "SUCCESS" "Push succeeded for $dst_grp/$dst_prj"
+
+            git remote set-url origin "$dst_url" >> "$LOG_FILE" 2>&1
+
+            # Push all branches
+            push_output=$(git push --all 2>&1)
+            push_exit=$?
+            if [ $push_exit -ne 0 ] && echo "$push_output" | grep -q "deny updating a hidden ref"; then
+                log "WARNING" "Hidden ref push rejected but ignored."
+                push_exit=0
+            fi
+
+            if [ $push_exit -ne 0 ]; then
+                log "WARNING" "Push all branches failed at attempt $retry: $push_output"
                 cd - >/dev/null || exit
                 rm -rf "$clone_dir"
-                return 0
-            else
-                log "WARNING" "Push failed at attempt $retry, retrying..."
+                sleep $((retry * 3))
+                continue
             fi
+
+            # Push tags
+            push_output=$(git push --tags 2>&1)
+            push_exit=$?
+            if [ $push_exit -ne 0 ] && echo "$push_output" | grep -q "deny updating a hidden ref"; then
+                log "WARNING" "Hidden ref push rejected but ignored."
+                push_exit=0
+            fi
+
+            if [ $push_exit -ne 0 ]; then
+                log "WARNING" "Push tags failed at attempt $retry: $push_output"
+                cd - >/dev/null || exit
+                rm -rf "$clone_dir"
+                sleep $((retry * 3))
+                continue
+            fi
+
+            log "SUCCESS" "Push succeeded for $dst_grp/$dst_prj"
             cd - >/dev/null || exit
+            rm -rf "$clone_dir"
+            return 0
         else
             log "WARNING" "Clone failed at attempt $retry, retrying..."
         fi
@@ -105,6 +135,7 @@ migrate_project() {
     log "ERROR" "Migration failed for $src_url"
     return 1
 }
+
 
 # Input validation
 validate_input() {
