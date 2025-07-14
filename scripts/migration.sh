@@ -95,19 +95,24 @@ migrate_project() {
 
     for ((retry=1; retry<=MAX_RETRY; retry++)); do
         if git clone --bare "$src_url" "$clone_dir" >> "$LOG_FILE" 2>&1; then
-            (
-                set +e  # Allow failure inside retry block
-                cd "$clone_dir" || return 1
-                git remote set-url origin "$dst_url" >> "$LOG_FILE" 2>&1
+            # Enter cloned repo directory
+            if ! cd "$clone_dir"; then
+                log "ERROR" "Failed to enter directory $clone_dir"
+                rm -rf "$clone_dir"
+                return 1
+            fi
 
-                if git push --all >> "$LOG_FILE" 2>&1 && git push --tags >> "$LOG_FILE" 2>&1; then
-                    log "SUCCESS" "Push successful: ${dst_grp}/${dst_prj}"
-                    rm -rf "$clone_dir"
-                    return 0
-                else
-                    log "WARNING" "Push failed (attempt ${retry}), retrying..."
-                fi
-            )
+            git remote set-url origin "$dst_url" >> "$LOG_FILE" 2>&1
+
+            if git push --all >> "$LOG_FILE" 2>&1 && git push --tags >> "$LOG_FILE" 2>&1; then
+                log "SUCCESS" "Push successful: ${dst_grp}/${dst_prj}"
+                rm -rf "$clone_dir"
+                return 0
+            else
+                log "WARNING" "Push failed (attempt ${retry}), retrying..."
+            fi
+
+            cd - >/dev/null || exit 1
         else
             log "WARNING" "Clone failed (attempt ${retry}), retrying..."
         fi
@@ -146,7 +151,6 @@ main() {
 
     while IFS= read -r line; do
         current=$((current + 1))
-
         read -r src_grp src_prj dst_grp dst_prj <<< "$line"
 
         show_progress "$current" "$total"
